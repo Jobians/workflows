@@ -34,7 +34,7 @@ jobs:
           ndk-version: r28b
           link-to-sdk: false
 
-      - uses: bazel-contrib/setup-bazel@0.19.0
+      - uses: bazel-contrib/setup-bazel@0.19.1
         with:
           bazelisk-cache: true
           disk-cache: true
