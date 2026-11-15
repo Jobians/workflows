@@ -1,0 +1,108 @@
+name: termux-wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Space-separated packages to build"
+        default: "mitmproxy"
+        required: true
+  schedule:
+    - cron: "0 3 1 * *"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+env:
+  PACKAGES: ${{ github.event.inputs.packages || 'mitmproxy' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Release tag
+        id: meta
+        run: echo "tag=wheels-$(date +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare output dir and build script
+        run: |
+          mkdir -p out
+          chmod 777 out
+          cat > build.sh <<'EOF'
+          set -euxo pipefail
+          yes | pkg update || true
+          pkg install -y python rust clang make pkg-config binutils \
+            libffi openssl libxml2 libxslt zlib
+          python -m pip install --upgrade pip wheel setuptools maturin
+          export ANDROID_API_LEVEL=24
+          export CARGO_BUILD_JOBS=2
+          python -m pip wheel $PACKAGES --wheel-dir /out
+          cd /out && sha256sum *.whl > SHA256SUMS
+          python --version > PYTHON_VERSION
+          EOF
+
+      - name: Build inside Termux container
+        run: |
+          docker run --rm \
+            -e PACKAGES="$PACKAGES" \
+            -v "$PWD/build.sh:/build.sh:ro" \
+            -v "$PWD/out:/out" \
+            termux/termux-docker:aarch64 \
+            bash /build.sh
+
+      - name: Show results
+        run: ls -lh out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: out/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: out
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: Termux wheels ${{ needs.build.outputs.tag }}
+          body: |
+            Prebuilt wheels for Termux (aarch64, bionic libc).
+            Only compatible with the Python version in PYTHON_VERSION.
+            Verify with SHA256SUMS.
+          files: out/*
+
+      - name: Generate index page
+        run: |
+          mkdir -p site
+          base="https://github.com/${{ github.repository }}/releases/download/${{ needs.build.outputs.tag }}"
+          {
+            echo "<!doctype html><html><body>"
+            for f in out/*.whl; do
+              n=$(basename "$f")
+              h=$(sha256sum "$f" | cut -d' ' -f1)
+              echo "<a href=\"$base/$n#sha256=$h\">$n</a><br>"
+            done
+            echo "</body></html>"
+          } > site/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
