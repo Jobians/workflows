@@ -41,7 +41,7 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools maturin
           export ANDROID_API_LEVEL=24
           export CARGO_BUILD_JOBS=2
-          python -m pip wheel $PACKAGES --wheel-dir /out
+          python -m pip wheel $1 --wheel-dir /out
           cd /out && sha256sum *.whl > SHA256SUMS
           python --version > PYTHON_VERSION
           EOF
@@ -49,11 +49,10 @@ jobs:
       - name: Build inside Termux container
         run: |
           docker run --rm \
-            -e PACKAGES="$PACKAGES" \
             -v "$PWD/build.sh:/build.sh:ro" \
             -v "$PWD/out:/out" \
             termux/termux-docker:aarch64 \
-            bash /build.sh
+            bash /build.sh "$PACKAGES"
 
       - name: Show results
         run: ls -lh out
