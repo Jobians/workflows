@@ -36,12 +36,15 @@ jobs:
           cat > build.sh <<'EOF'
           set -euxo pipefail
           yes | pkg update || true
-          pkg install -y python rust clang make pkg-config binutils \
+          pkg install -y python rust clang make cmake ninja pkg-config binutils \
             libffi openssl libxml2 libxslt zlib
-          python -m pip install --upgrade pip wheel setuptools maturin
+          python -m pip install --upgrade pip wheel setuptools maturin \
+            scikit-build-core cffi
           export ANDROID_API_LEVEL=24
           export CARGO_BUILD_JOBS=2
-          python -m pip wheel $1 --wheel-dir /out
+          python -m pip wheel argon2-cffi-bindings --no-build-isolation \
+            --wheel-dir /out
+          python -m pip wheel $1 --find-links /out --wheel-dir /out
           cd /out && sha256sum *.whl > SHA256SUMS
           python --version > PYTHON_VERSION
           EOF
