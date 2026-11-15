@@ -39,7 +39,7 @@ jobs:
           pkg install -y python rust clang make cmake ninja pkg-config binutils \
             libffi openssl libxml2 libxslt zlib
           python -m pip install --upgrade pip wheel setuptools maturin \
-            scikit-build-core cffi
+            scikit-build-core setuptools-scm cffi
           export ANDROID_API_LEVEL=24
           export CARGO_BUILD_JOBS=2
           python -m pip wheel argon2-cffi-bindings --no-build-isolation \
